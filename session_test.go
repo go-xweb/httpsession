@@ -25,6 +25,9 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		fmt.Println(testid, "get sessionid:", session.id, "test:", t)
 	}
 	testid = testid + 1
+	if testid == 3 {
+		session.Invalidate(rw)
+	}
 }
 
 func TestSession(t *testing.T) {
@@ -37,7 +40,7 @@ func TestSession(t *testing.T) {
 
 	session := csession.New()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 5; i++ {
 		_, err := session.Get("http://127.0.0.1:8333")
 		if err != nil {
 			fmt.Println(err)

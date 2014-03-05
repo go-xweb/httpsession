@@ -16,20 +16,28 @@ type Store interface {
 }
 
 type Session struct {
-	id    Id
-	store Store
+	id      Id
+	manager *Manager
 }
 
 func (session *Session) Get(key string) interface{} {
-	return session.store.Get(session.id, key)
+	return session.manager.store.Get(session.id, key)
 }
 
 func (session *Session) Set(key string, value interface{}) {
-	session.store.Set(session.id, key, value)
+	session.manager.store.Set(session.id, key, value)
 }
 
 func (session *Session) Del(key string) bool {
-	return session.store.Del(session.id, key)
+	return session.manager.store.Del(session.id, key)
+}
+
+func (session *Session) Invalidate(rw http.ResponseWriter) {
+	session.manager.Invalidate(rw, session)
+}
+
+func (session *Session) IsValid(id Id) bool {
+	return session.manager.generator.IsValid(id)
 }
 
 const (
@@ -75,7 +83,7 @@ func (manager *Manager) Session(req *http.Request, rw http.ResponseWriter) *Sess
 		manager.transfer.Set(rw, id)
 	}
 
-	session := &Session{id: id, store: manager.store}
+	session := &Session{id: id, manager: manager}
 	// is exist?
 	manager.afterCreated(session)
 	return session
