@@ -2,6 +2,7 @@ package httpsession
 
 import (
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -11,13 +12,19 @@ type Store interface {
 	Get(id Id, key string) interface{}
 	Set(id Id, key string, value interface{})
 	Del(id Id, key string) bool
-	DelAll(id Id) bool
+	Clear(id Id) bool
+	Add(id Id)
+	Exist(id Id) bool
 	Run() error
 }
 
 type Session struct {
 	id      Id
 	manager *Manager
+}
+
+func (session *Session) Id() Id {
+	return session.id
 }
 
 func (session *Session) Get(key string) interface{} {
@@ -36,8 +43,8 @@ func (session *Session) Invalidate(rw http.ResponseWriter) {
 	session.manager.Invalidate(rw, session)
 }
 
-func (session *Session) IsValid(id Id) bool {
-	return session.manager.generator.IsValid(id)
+func (session *Session) IsValid() bool {
+	return session.manager.generator.IsValid(session.id)
 }
 
 const (
@@ -52,6 +59,7 @@ type Manager struct {
 	transfer               Transfer
 	beforeReleaseListeners map[BeforeReleaseListener]bool
 	afterCreatedListeners  map[AfterCreatedListener]bool
+	lock                   sync.Mutex
 }
 
 func Default() *Manager {
@@ -59,7 +67,7 @@ func Default() *Manager {
 	key := string(GenRandKey(16))
 	return NewManager(store,
 		NewSha1Generator(key),
-		NewCookieTransfer("test"))
+		NewCookieTransfer("SESSIONID", DefaultExpireTime))
 }
 
 func NewManager(store Store, gen IdGenerator, transfer Transfer) *Manager {
@@ -71,6 +79,10 @@ func NewManager(store Store, gen IdGenerator, transfer Transfer) *Manager {
 }
 
 func (manager *Manager) Session(req *http.Request, rw http.ResponseWriter) *Session {
+	manager.lock.Lock()
+	defer manager.lock.Unlock()
+	//fmt.Println("kkkkkkkkkkk", req.Cookies())
+	//fmt.Printf("req address : %p\n", req)
 	id, err := manager.transfer.Get(req)
 	if err != nil {
 		// TODO:
@@ -78,9 +90,15 @@ func (manager *Manager) Session(req *http.Request, rw http.ResponseWriter) *Sess
 		return nil
 	}
 
-	if !manager.generator.IsValid(id) {
+	if !manager.generator.IsValid(id) /*|| !manager.store.Exist(id)*/ {
+		//fmt.Println("id", id, "on store is ", manager.store.Exist(id))
 		id = manager.generator.Gen(req)
-		manager.transfer.Set(rw, id)
+		manager.transfer.Set(req, rw, id)
+		manager.store.Add(id)
+		//fmt.Println("id", id, "on store is ", manager.store.Exist(id))
+
+		//fmt.Println("---------", req.Cookies())
+		//fmt.Println("ssssssss", rw.Header())
 	}
 
 	session := &Session{id: id, manager: manager}
@@ -91,7 +109,7 @@ func (manager *Manager) Session(req *http.Request, rw http.ResponseWriter) *Sess
 
 func (manager *Manager) Invalidate(rw http.ResponseWriter, session *Session) {
 	manager.beforeReleased(session)
-	manager.store.DelAll(session.id)
+	manager.store.Clear(session.id)
 	manager.transfer.Clear(rw)
 }
 

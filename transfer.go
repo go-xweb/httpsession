@@ -3,13 +3,14 @@ package httpsession
 import (
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
 // Transfer provide and set sessionid
 type Transfer interface {
 	Get(req *http.Request) (Id, error)
-	Set(rw http.ResponseWriter, id Id)
+	Set(req *http.Request, rw http.ResponseWriter, id Id)
 	Clear(rw http.ResponseWriter)
 }
 
@@ -17,10 +18,11 @@ type Transfer interface {
 type CookieTransfer struct {
 	name   string
 	expire time.Duration
+	lock   sync.Mutex
 }
 
-func NewCookieTransfer(name string) *CookieTransfer {
-	return &CookieTransfer{name: name}
+func NewCookieTransfer(name string, expire time.Duration) *CookieTransfer {
+	return &CookieTransfer{name: name, expire: expire}
 }
 
 func (transfer *CookieTransfer) Get(req *http.Request) (Id, error) {
@@ -31,21 +33,35 @@ func (transfer *CookieTransfer) Get(req *http.Request) (Id, error) {
 		}
 		return "", err
 	}
-	return Id(cookie.Value), nil
+	if cookie.Value == "" {
+		return Id(""), nil
+	}
+	id, _ := url.QueryUnescape(cookie.Value)
+	//id := cookie.Value
+	return Id(id), nil
 }
 
-func (transfer *CookieTransfer) Set(rw http.ResponseWriter, id Id) {
-	cookie := http.Cookie{
-		Name:     transfer.name,
-		Path:     "/",
-		Value:    url.QueryEscape(string(id)),
-		HttpOnly: true,
-		Expires:  time.Now().Add(transfer.expire),
-		MaxAge:   int(transfer.expire),
-		Secure:   true,
-	}
+func (transfer *CookieTransfer) Set(req *http.Request, rw http.ResponseWriter, id Id) {
+	sid := url.QueryEscape(string(id))
+	transfer.lock.Lock()
+	defer transfer.lock.Unlock()
+	//sid := string(id)
+	cookie, _ := req.Cookie(transfer.name)
+	if cookie == nil {
+		cookie = &http.Cookie{
+			Name:     transfer.name,
+			Value:    sid,
+			MaxAge:   int(transfer.expire / time.Second),
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+		}
 
-	http.SetCookie(rw, &cookie)
+		req.AddCookie(cookie)
+	} else {
+		cookie.Value = sid
+	}
+	http.SetCookie(rw, cookie)
 }
 
 func (transfer *CookieTransfer) Clear(rw http.ResponseWriter) {
@@ -59,7 +75,7 @@ func (transfer *CookieTransfer) Clear(rw http.ResponseWriter) {
 	http.SetCookie(rw, &cookie)
 }
 
-var _ Transfer = NewCookieTransfer("test")
+var _ Transfer = NewCookieTransfer("test", DefaultExpireTime)
 
 // CookieRetriever provide sessionid from url
 /*type UrlTransfer struct {

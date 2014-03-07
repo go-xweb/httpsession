@@ -65,17 +65,42 @@ func (store *MemoryStore) Set(id Id, key string, value interface{}) {
 		node.kvs[key] = value
 		node.lock.Unlock()
 	}
+}
 
+func (store *MemoryStore) Add(id Id) {
+	node := &sessionNode{kvs: make(map[string]interface{}), expire: DefaultExpireTime}
+	store.lock.Lock()
+	store.nodes[id] = node
+	store.lock.Unlock()
 }
 
 func (store *MemoryStore) Del(id Id, key string) bool {
+	store.lock.RLock()
+	node, ok := store.nodes[id]
+	store.lock.RUnlock()
+	if ok {
+		node.lock.Lock()
+		delete(node.kvs, key)
+		node.lock.Unlock()
+	}
 	return true
 }
 
-func (store *MemoryStore) DelAll(id Id) bool {
+func (store *MemoryStore) Exist(id Id) bool {
+	store.lock.RLock()
+	defer store.lock.RUnlock()
+	_, ok := store.nodes[id]
+	return ok
+}
+
+func (store *MemoryStore) Clear(id Id) bool {
+	store.lock.RLock()
+	defer store.lock.RUnlock()
+	delete(store.nodes, id)
 	return true
 }
 
+// TODO: gc
 func (store *MemoryStore) Run() error {
 	return nil
 }
