@@ -54,7 +54,7 @@ func (transfer *CookieTransfer) Set(req *http.Request, rw http.ResponseWriter, i
 			MaxAge:   int(transfer.expire / time.Second),
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   true,
+			//Secure:   true,
 		}
 
 		req.AddCookie(cookie)

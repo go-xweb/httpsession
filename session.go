@@ -81,8 +81,7 @@ func NewManager(store Store, gen IdGenerator, transfer Transfer) *Manager {
 func (manager *Manager) Session(req *http.Request, rw http.ResponseWriter) *Session {
 	manager.lock.Lock()
 	defer manager.lock.Unlock()
-	//fmt.Println("kkkkkkkkkkk", req.Cookies())
-	//fmt.Printf("req address : %p\n", req)
+
 	id, err := manager.transfer.Get(req)
 	if err != nil {
 		// TODO:
@@ -91,14 +90,9 @@ func (manager *Manager) Session(req *http.Request, rw http.ResponseWriter) *Sess
 	}
 
 	if !manager.generator.IsValid(id) /*|| !manager.store.Exist(id)*/ {
-		//fmt.Println("id", id, "on store is ", manager.store.Exist(id))
 		id = manager.generator.Gen(req)
 		manager.transfer.Set(req, rw, id)
 		manager.store.Add(id)
-		//fmt.Println("id", id, "on store is ", manager.store.Exist(id))
-
-		//fmt.Println("---------", req.Cookies())
-		//fmt.Println("ssssssss", rw.Header())
 	}
 
 	session := &Session{id: id, manager: manager}

@@ -46,20 +46,15 @@ func (store *MemoryStore) Get(id Id, key string) interface{} {
 }
 
 func (store *MemoryStore) Set(id Id, key string, value interface{}) {
-	store.lock.RLock()
+	store.lock.Lock()
 	node, ok := store.nodes[id]
-	store.lock.RUnlock()
 	if !ok {
 		node = &sessionNode{kvs: make(map[string]interface{}), expire: DefaultExpireTime}
 		node.kvs[key] = value
-		store.lock.Lock()
 		store.nodes[id] = node
 		store.lock.Unlock()
-
-		node.lock.Lock()
-
-		node.lock.Unlock()
 	} else {
+		store.lock.Unlock()
 		node.lock.Lock()
 		node.expire = DefaultExpireTime
 		node.kvs[key] = value
