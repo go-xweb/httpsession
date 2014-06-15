@@ -9,8 +9,8 @@ Installation
 
 Make sure you have installed Go 1.1+ and then:
 
-    go get github.com/lunny/httpsession
+    go get github.com/go-xweb/httpsession
 
-More usage, please visit https://github.com/lunny/httpsession/
+More usage, please visit https://github.com/go-xweb/httpsession/
 */
 package httpsession
