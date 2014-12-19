@@ -81,10 +81,7 @@ func (store *MemoryStore) Set(id Id, key string, value interface{}) {
 	store.lock.RUnlock()
 	if !ok {
 		store.lock.Lock()
-		node = &sessionNode{kvs: make(map[string]interface{}),
-			last:   time.Now(),
-			maxAge: store.maxAge,
-		}
+		node = store.newNode()
 		node.kvs[key] = value
 		store.nodes[id] = node
 		store.lock.Unlock()
@@ -93,8 +90,16 @@ func (store *MemoryStore) Set(id Id, key string, value interface{}) {
 	node.Set(key, value)
 }
 
+func (store *MemoryStore) newNode() *sessionNode {
+	return &sessionNode{
+		kvs: make(map[string]interface{}), 
+		last: time.Now(),
+		maxAge: store.maxAge,
+	}
+}
+
 func (store *MemoryStore) Add(id Id) {
-	node := &sessionNode{kvs: make(map[string]interface{}), last: time.Now()}
+	node := store.newNode()
 	store.lock.Lock()
 	store.nodes[id] = node
 	store.lock.Unlock()
